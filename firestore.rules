@@ -16,15 +16,14 @@ service cloud.firestore {
     match /teachers/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow delete: if isAdmin();
-      // Pendaftaran sendiri: hanya e-mel DELIMa yang disahkan, sentiasa bermula TIDAK aktif
+      // Pendaftaran sendiri: hanya e-mel DELIMa yang disahkan; aktif serta-merta (admin boleh nyahaktifkan)
       allow create: if isAdmin() ||
         (request.auth.uid == uid
          && request.auth.token.email_verified == true
          && request.auth.token.email.matches('.*@moe-dl[.]edu[.]my')
          && request.resource.data.keys().hasOnly(['name','email','role','session','active','pending','createdAt'])
          && request.resource.data.role == 'guru'
-         && request.resource.data.active == false
-         && request.resource.data.pending == true
+         && request.resource.data.active == true
          && request.resource.data.email == request.auth.token.email
          && request.resource.data.session in ['pagi','petang','kedua-dua']);
       allow update: if isAdmin() ||

@@ -136,11 +136,8 @@ $("google-btn").addEventListener("click", async () => {
 
 function showPending(me) {
   show("pending");
-  const rejected = me.pending === false; // pernah diluluskan atau dinyahaktifkan pentadbir
-  $("pending-title").textContent = rejected ? "Akaun Tidak Aktif" : "Menunggu Kelulusan";
-  $("pending-text").textContent = rejected
-    ? "Akaun anda telah dinyahaktifkan. Sila hubungi pentadbir sekolah."
-    : "Pendaftaran anda telah dihantar. Pentadbir akan meluluskannya tidak lama lagi. Anda boleh tutup app ini dan cuba semula nanti.";
+  $("pending-title").textContent = "Akaun Tidak Aktif";
+  $("pending-text").textContent = "Akaun anda telah dinyahaktifkan oleh pentadbir. Sila hubungi pentadbir sekolah.";
 }
 
 function showRegister(user) {
@@ -162,8 +159,7 @@ $("register-form").addEventListener("submit", async (e) => {
       email: user.email,
       role: "guru",
       session: $("reg-session").value,
-      active: false,
-      pending: true,
+      active: true,
       createdAt: serverTimestamp(),
     });
     routeUser(user);
