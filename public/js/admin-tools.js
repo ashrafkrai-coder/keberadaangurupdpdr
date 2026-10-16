@@ -27,11 +27,12 @@ export function initAdminTools(state) {
       const rows = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .filter((t) => t.role !== "admin")
-        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+        .sort((a, b) => (b.pending === true && b.active === false) - (a.pending === true && a.active === false) ||
+          (a.name || "").localeCompare(b.name || ""));
       $("m-rows").innerHTML = rows
         .map(
           (t) => `<tr data-uid="${esc(t.id)}">
-            <td class="px-3 py-2"><p class="font-medium">${esc(t.name)}</p><p class="text-xs text-slate-500">${esc(t.email)}</p></td>
+            <td class="px-3 py-2"><p class="font-medium">${esc(t.name)}${t.pending === true && t.active === false ? ' <span class="ml-1 rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs font-semibold">Menunggu kelulusan</span>' : ""}</p><p class="text-xs text-slate-500">${esc(t.email)}</p></td>
             <td class="px-3 py-2"><select data-f="session" class="rounded-lg border border-slate-300 px-2 py-1 bg-white text-sm">
               ${SESSIONS.map(([v, l]) => `<option value="${v}" ${t.session === v ? "selected" : ""}>${l}</option>`).join("")}</select></td>
             <td class="px-3 py-2 text-center text-xs">${t.home ? `<span class="text-green-600">Berdaftar</span> <button data-reset-home class="ml-1 text-red-600 underline">Reset</button>` : `<span class="text-slate-400">Belum</span>`}</td>
@@ -62,7 +63,8 @@ export function initAdminTools(state) {
     if (!tr || !f) return;
     const value = f === "active" ? e.target.checked : e.target.value;
     try {
-      await updateDoc(doc(db, "teachers", tr.dataset.uid), { [f]: value });
+      // Meluluskan (atau menyahaktifkan) menamatkan status "menunggu kelulusan"
+      await updateDoc(doc(db, "teachers", tr.dataset.uid), f === "active" ? { active: value, pending: false } : { [f]: value });
     } catch (ex) {
       alert("Gagal menyimpan: " + ex.message);
     }

@@ -1,6 +1,6 @@
 import { auth, db } from "./firebase-init.js";
 import {
-  signInWithEmailAndPassword, signOut, onAuthStateChanged,
+  signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, orderBy, limit, serverTimestamp,
@@ -26,7 +26,7 @@ const SLOT = {
 };
 
 function show(view) {
-  for (const v of ["loading", "login", "teacher", "admin"]) $("view-" + v).classList.toggle("hidden", v !== view);
+  for (const v of ["loading", "login", "register", "pending", "teacher", "admin"]) $("view-" + v).classList.toggle("hidden", v !== view);
 }
 
 const timeOf = (ts, tz) =>
@@ -108,33 +108,117 @@ document.querySelectorAll("[data-logout]").forEach((b) =>
   })
 );
 
-onAuthStateChanged(auth, async (user) => {
+/* ---------- Log masuk / daftar dengan DELIMa (Google) ---------- */
+const DELIMA_DOMAIN = "@moe-dl.edu.my"; // mesti sepadan dengan firestore.rules
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ hd: "moe-dl.edu.my", prompt: "select_account" });
+
+function loginError(id, msg) {
+  const el = $(id);
+  el.textContent = msg;
+  el.classList.remove("hidden");
+}
+
+$("google-btn").addEventListener("click", async () => {
+  $("google-error").classList.add("hidden");
+  try {
+    await signInWithPopup(auth, googleProvider);
+  } catch (ex) {
+    if (ex.code === "auth/popup-closed-by-user" || ex.code === "auth/cancelled-popup-request") return;
+    loginError(
+      "google-error",
+      ex.code === "auth/popup-blocked"
+        ? "Pelayar menyekat tetingkap log masuk. Benarkan popup untuk laman ini."
+        : "Log masuk Google gagal: " + (ex.code || ex.message)
+    );
+  }
+});
+
+function showPending(me) {
+  show("pending");
+  const rejected = me.pending === false; // pernah diluluskan atau dinyahaktifkan pentadbir
+  $("pending-title").textContent = rejected ? "Akaun Tidak Aktif" : "Menunggu Kelulusan";
+  $("pending-text").textContent = rejected
+    ? "Akaun anda telah dinyahaktifkan. Sila hubungi pentadbir sekolah."
+    : "Pendaftaran anda telah dihantar. Pentadbir akan meluluskannya tidak lama lagi. Anda boleh tutup app ini dan cuba semula nanti.";
+}
+
+function showRegister(user) {
+  show("register");
+  $("reg-email").value = user.email;
+  $("reg-name").value = user.displayName || "";
+  $("reg-error").classList.add("hidden");
+}
+
+$("register-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const user = auth.currentUser;
+  if (!user) return;
+  const btn = $("reg-btn");
+  btn.disabled = true;
+  try {
+    await setDoc(doc(db, "teachers", user.uid), {
+      name: $("reg-name").value.trim(),
+      email: user.email,
+      role: "guru",
+      session: $("reg-session").value,
+      active: false,
+      pending: true,
+      createdAt: serverTimestamp(),
+    });
+    routeUser(user);
+  } catch (ex) {
+    loginError("reg-error", "Pendaftaran gagal: " + ex.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function routeUser(user) {
   cleanup();
-  if (!user) { state.user = null; show("login"); return; }
   show("loading");
   try {
     const [cfg, me] = await Promise.all([
       getDoc(doc(db, "config", "school")),
       getDoc(doc(db, "teachers", user.uid)),
     ]);
-    if (!me.exists() || me.data().active === false) {
-      await signOut(auth);
-      const err = $("login-error");
-      err.textContent = "Akaun anda tidak didaftarkan atau tidak aktif. Hubungi pentadbir.";
-      err.classList.remove("hidden");
-      return;
+
+    // Belum berdaftar: hanya e-mel DELIMa yang disahkan boleh mendaftar
+    if (!me.exists()) {
+      const ok = user.emailVerified && (user.email || "").toLowerCase().endsWith(DELIMA_DOMAIN);
+      if (!ok) {
+        await signOut(auth);
+        loginError("login-error", "Akaun anda tidak didaftarkan. Guru perlu log masuk dengan e-mel DELIMa (@moe-dl.edu.my).");
+        return;
+      }
+      return showRegister(user);
     }
+
     state.user = user;
     state.config = { ...DEFAULT_CONFIG, ...(cfg.exists() ? cfg.data() : {}) };
     state.me = { id: user.uid, ...me.data() };
+
+    // Menunggu kelulusan: pantau dokumen sendiri sehingga diluluskan
+    if (state.me.active === false) {
+      showPending(state.me);
+      state.unsubs.push(
+        onSnapshot(doc(db, "teachers", user.uid), (snap) => {
+          if (snap.exists() && snap.data().active !== false) routeUser(user);
+        })
+      );
+      return;
+    }
     state.me.role === "admin" ? startAdmin() : startTeacher();
   } catch (ex) {
     console.error(ex);
     await signOut(auth);
-    const err = $("login-error");
-    err.textContent = "Gagal memuatkan data: " + ex.message;
-    err.classList.remove("hidden");
+    loginError("login-error", "Gagal memuatkan data: " + ex.message);
   }
+}
+
+onAuthStateChanged(auth, (user) => {
+  if (!user) { cleanup(); state.user = null; show("login"); return; }
+  routeUser(user);
 });
 
 /* =====================================================
@@ -331,8 +415,10 @@ function startAdmin() {
     onSnapshot(
       collection(db, "teachers"),
       (snap) => {
-        state.teachers = snap.docs
-          .map((d) => ({ id: d.id, ...d.data(SNAP) }))
+        const all = snap.docs.map((d) => ({ id: d.id, ...d.data(SNAP) }));
+        const pending = all.filter((t) => t.active === false && t.pending === true).length;
+        $("btn-manage").textContent = pending ? `Urus Guru (${pending} baharu)` : "Urus Guru";
+        state.teachers = all
           .filter((t) => t.role !== "admin" && t.active !== false)
           .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
         renderAdmin();
