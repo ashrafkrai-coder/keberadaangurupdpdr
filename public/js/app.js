@@ -450,8 +450,8 @@ $("f-date").addEventListener("change", (e) => {
 
 function initMap() {
   if (map) { setTimeout(() => map.invalidateSize(), 100); return; }
-  const c = state.config.center;
-  map = L.map("map").setView([c.lat, c.lng], 12);
+  // Paparan awal: Malaysia. Peta zum sendiri ke lokasi check-in apabila ada data.
+  map = L.map("map").setView([4.2, 102.0], 6);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(map);
   setTimeout(() => map.invalidateSize(), 100);
 }

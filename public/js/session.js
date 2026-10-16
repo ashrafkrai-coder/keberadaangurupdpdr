@@ -1,7 +1,6 @@
 // Nilai lalai; nilai sebenar dibaca dari config/school di Firestore
 export const DEFAULT_CONFIG = {
   name: "Sekolah",
-  center: { lat: 3.1390, lng: 101.6869 }, // hanya untuk paparan lalai peta
   homeRadiusMeters: 150,                  // jarak maksimum dari rumah berdaftar
   timezone: "Asia/Kuala_Lumpur",
   checkinOpenBeforeMin: 60,               // check-in dibuka sekian minit sebelum sesi

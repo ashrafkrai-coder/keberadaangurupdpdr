@@ -114,8 +114,6 @@ export function initAdminTools(state) {
   $("btn-settings").addEventListener("click", () => {
     const c = state.config;
     $("s-name").value = c.name || "";
-    $("s-lat").value = c.center.lat;
-    $("s-lng").value = c.center.lng;
     $("s-radius").value = c.homeRadiusMeters;
     $("s-open").value = c.checkinOpenBeforeMin;
     $("s-grace").value = c.graceMinutes;
@@ -127,23 +125,11 @@ export function initAdminTools(state) {
     $("dlg-settings").showModal();
   });
 
-  $("s-here").addEventListener("click", () => {
-    navigator.geolocation.getCurrentPosition(
-      (p) => {
-        $("s-lat").value = p.coords.latitude.toFixed(6);
-        $("s-lng").value = p.coords.longitude.toFixed(6);
-      },
-      () => note($("s-msg"), "Tidak dapat mengambil lokasi. Benarkan akses lokasi.", false),
-      { enableHighAccuracy: true, timeout: 20000 }
-    );
-  });
-
   $("s-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const msg = $("s-msg");
     const data = {
       name: $("s-name").value.trim(),
-      center: { lat: parseFloat($("s-lat").value), lng: parseFloat($("s-lng").value) },
       homeRadiusMeters: parseInt($("s-radius").value, 10),
       checkinOpenBeforeMin: parseInt($("s-open").value, 10),
       graceMinutes: parseInt($("s-grace").value, 10),
@@ -153,8 +139,8 @@ export function initAdminTools(state) {
         petang: { start: $("s-petang-start").value, end: $("s-petang-end").value },
       },
     };
-    if (!isFinite(data.center.lat) || !isFinite(data.center.lng) || !(data.homeRadiusMeters > 0)) {
-      return note(msg, "Semak koordinat dan radius.", false);
+    if (!(data.homeRadiusMeters > 0)) {
+      return note(msg, "Semak nilai radius.", false);
     }
     try {
       await setDoc(doc(db, "config", "school"), data, { merge: true });

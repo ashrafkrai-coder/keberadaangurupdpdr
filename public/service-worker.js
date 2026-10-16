@@ -1,5 +1,5 @@
 // Naikkan VERSION setiap kali fail app diubah supaya cache lama dibuang.
-const VERSION = "v5";
+const VERSION = "v6";
 const SHELL = `shell-${VERSION}`;
 const RUNTIME = `runtime-${VERSION}`;
 
