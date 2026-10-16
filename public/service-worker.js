@@ -1,5 +1,5 @@
 // Naikkan VERSION setiap kali fail app diubah supaya cache lama dibuang.
-const VERSION = "v2";
+const VERSION = "v3";
 const SHELL = `shell-${VERSION}`;
 const RUNTIME = `runtime-${VERSION}`;
 
@@ -10,7 +10,6 @@ const SHELL_FILES = [
   "/js/app.js",
   "/js/firebase-init.js",
   "/js/session.js",
-  "/js/tracker.js",
   "/js/admin-tools.js",
   "/icons/icon-192.png",
   "/icons/icon-512.png",

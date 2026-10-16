@@ -16,16 +16,25 @@ service cloud.firestore {
     match /teachers/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow create, delete: if isAdmin();
-      // Guru hanya boleh ubah medan lokasi/status miliknya sendiri
       allow update: if isAdmin() ||
-        (request.auth.uid == uid &&
-         request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['sharing','lastLocation','lastUpdate','geofence','status','source','battery']));
+        // Guru hanya boleh mendaftar lokasi rumah SEKALI (admin boleh reset)
+        (request.auth.uid == uid
+         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['home'])
+         && !('home' in resource.data)
+         && request.resource.data.home.keys().hasOnly(['lat','lng','accuracy','setAt'])
+         && request.resource.data.home.lat is number
+         && request.resource.data.home.lng is number);
     }
 
-    match /teachers/{uid}/history/{id} {
-      allow read: if isAdmin() || request.auth.uid == uid;
-      allow create: if request.auth.uid == uid || isAdmin();
+    // Satu rekod per guru per sesi per hari. ID = tarikh_uid_sesi (tiada pendua).
+    match /checkins/{id} {
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.session in ['pagi', 'petang']
+        && request.resource.data.homeStatus in ['dalam', 'luar']
+        && request.resource.data.timestamp == request.time
+        && id == request.resource.data.date + '_' + request.auth.uid + '_' + request.resource.data.session;
       allow update, delete: if false;
     }
   }

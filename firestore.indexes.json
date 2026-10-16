@@ -1,11 +1,13 @@
 {
-  "indexes": [],
-  "fieldOverrides": [
+  "indexes": [
     {
-      "collectionGroup": "history",
-      "fieldPath": "expireAt",
-      "ttl": true,
-      "indexes": []
+      "collectionGroup": "checkins",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
     }
-  ]
+  ],
+  "fieldOverrides": []
 }

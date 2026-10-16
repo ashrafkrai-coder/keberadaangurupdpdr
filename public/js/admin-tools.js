@@ -4,7 +4,7 @@ import {
   getAuth, createUserWithEmailAndPassword, signOut,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
-  collection, doc, onSnapshot, setDoc, updateDoc, serverTimestamp,
+  collection, doc, onSnapshot, setDoc, updateDoc, deleteField, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const $ = (id) => document.getElementById(id);
@@ -34,6 +34,7 @@ export function initAdminTools(state) {
             <td class="px-3 py-2"><p class="font-medium">${esc(t.name)}</p><p class="text-xs text-slate-500">${esc(t.email)}</p></td>
             <td class="px-3 py-2"><select data-f="session" class="rounded-lg border border-slate-300 px-2 py-1 bg-white text-sm">
               ${SESSIONS.map(([v, l]) => `<option value="${v}" ${t.session === v ? "selected" : ""}>${l}</option>`).join("")}</select></td>
+            <td class="px-3 py-2 text-center text-xs">${t.home ? `<span class="text-green-600">Berdaftar</span> <button data-reset-home class="ml-1 text-red-600 underline">Reset</button>` : `<span class="text-slate-400">Belum</span>`}</td>
             <td class="px-3 py-2 text-center"><input data-f="active" type="checkbox" class="h-4 w-4" ${t.active !== false ? "checked" : ""} /></td></tr>`
         )
         .join("");
@@ -42,6 +43,18 @@ export function initAdminTools(state) {
   });
 
   $("dlg-teachers").addEventListener("close", () => { unsub?.(); unsub = null; });
+
+  $("m-rows").addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-reset-home]");
+    const tr = btn && btn.closest("tr[data-uid]");
+    if (!tr) return;
+    if (!confirm("Reset lokasi rumah guru ini? Guru perlu mendaftar semula.")) return;
+    try {
+      await updateDoc(doc(db, "teachers", tr.dataset.uid), { home: deleteField() });
+    } catch (ex) {
+      alert("Gagal reset: " + ex.message);
+    }
+  });
 
   $("m-rows").addEventListener("change", async (e) => {
     const tr = e.target.closest("tr[data-uid]");
@@ -101,12 +114,13 @@ export function initAdminTools(state) {
     $("s-name").value = c.name || "";
     $("s-lat").value = c.center.lat;
     $("s-lng").value = c.center.lng;
-    $("s-radius").value = c.radiusMeters;
+    $("s-radius").value = c.homeRadiusMeters;
+    $("s-open").value = c.checkinOpenBeforeMin;
+    $("s-grace").value = c.graceMinutes;
     $("s-pagi-start").value = c.sessions.pagi.start;
     $("s-pagi-end").value = c.sessions.pagi.end;
     $("s-petang-start").value = c.sessions.petang.start;
     $("s-petang-end").value = c.sessions.petang.end;
-    $("s-stale").value = c.staleAfterMinutes;
     $("s-msg").className = "hidden";
     $("dlg-settings").showModal();
   });
@@ -128,15 +142,16 @@ export function initAdminTools(state) {
     const data = {
       name: $("s-name").value.trim(),
       center: { lat: parseFloat($("s-lat").value), lng: parseFloat($("s-lng").value) },
-      radiusMeters: parseInt($("s-radius").value, 10),
+      homeRadiusMeters: parseInt($("s-radius").value, 10),
+      checkinOpenBeforeMin: parseInt($("s-open").value, 10),
+      graceMinutes: parseInt($("s-grace").value, 10),
       timezone: state.config.timezone || "Asia/Kuala_Lumpur",
       sessions: {
         pagi: { start: $("s-pagi-start").value, end: $("s-pagi-end").value },
         petang: { start: $("s-petang-start").value, end: $("s-petang-end").value },
       },
-      staleAfterMinutes: parseInt($("s-stale").value, 10),
     };
-    if (!isFinite(data.center.lat) || !isFinite(data.center.lng) || !(data.radiusMeters > 0)) {
+    if (!isFinite(data.center.lat) || !isFinite(data.center.lng) || !(data.homeRadiusMeters > 0)) {
       return note(msg, "Semak koordinat dan radius.", false);
     }
     try {

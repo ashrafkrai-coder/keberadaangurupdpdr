@@ -3,23 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Keberadaan Guru</title>
-  <meta name="description" content="Sistem pemantauan keberadaan guru di kawasan sekolah." />
+  <title>Keberadaan Guru PdPR</title>
+  <meta name="description" content="Check-in keberadaan guru di rumah semasa Pembelajaran dari Rumah." />
   <meta name="theme-color" content="#4f46e5" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" href="/icons/icon-192.png" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="Keberadaan" />
+  <meta name="apple-mobile-web-app-title" content="Check-in Guru" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { background: #f1f5f9; }
     .safe-top { padding-top: env(safe-area-inset-top); }
     .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-    @keyframes ping-soft { 0% { transform: scale(1); opacity: .6 } 100% { transform: scale(1.9); opacity: 0 } }
-    .pulse::after { content: ""; position: absolute; inset: 0; border-radius: 9999px; background: currentColor; animation: ping-soft 1.8s ease-out infinite; }
     details > summary { list-style: none; }
     details > summary::-webkit-details-marker { display: none; }
     details[open] .chev { transform: rotate(180deg); }
@@ -38,10 +36,10 @@
     <div class="w-full max-w-sm">
       <div class="text-center mb-6">
         <div class="mx-auto h-14 w-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200">
-          <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10"/></svg>
         </div>
         <h1 class="mt-4 text-2xl font-bold">Keberadaan Guru</h1>
-        <p class="text-sm text-slate-500">Log masuk untuk meneruskan</p>
+        <p class="text-sm text-slate-500">Check-in Pembelajaran dari Rumah (PdPR)</p>
       </div>
       <form id="login-form" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
         <div>
@@ -74,32 +72,24 @@
     </header>
 
     <main class="max-w-md mx-auto p-4 space-y-4 safe-bottom">
-      <!-- Kad status -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 text-center">
-        <div id="t-status-icon" class="relative mx-auto h-20 w-20 rounded-full flex items-center justify-center">
-          <svg class="h-9 w-9" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-        </div>
-        <p id="t-status-label" class="mt-4 text-xl font-bold"></p>
-        <p id="t-status-sub" class="text-sm text-slate-500"></p>
+      <p id="t-date" class="text-sm font-medium text-slate-500"></p>
+
+      <!-- Lokasi rumah (muncul jika belum didaftar) -->
+      <div id="t-home-card" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-5">
+        <p class="font-semibold text-amber-900">Daftarkan lokasi rumah anda</p>
+        <p class="mt-1 text-sm text-amber-800">Lakukan sekali sahaja semasa berada di rumah. Check-in akan disahkan berdasarkan lokasi ini. Anda tidak boleh mengubahnya sendiri selepas ini.</p>
+        <button id="t-sethome" class="mt-3 w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3">Daftar Lokasi Rumah Sekarang</button>
       </div>
 
-      <!-- Butang utama -->
-      <div>
-        <button id="t-toggle" class="w-full rounded-2xl py-4 text-lg font-semibold text-white shadow-lg transition active:scale-[.98] disabled:opacity-50 disabled:cursor-not-allowed"></button>
-        <p id="t-hint" class="mt-2 text-center text-xs text-slate-500"></p>
-        <p id="t-error" class="hidden mt-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></p>
-      </div>
+      <!-- Slot check-in hari ini -->
+      <div id="t-slots" class="space-y-4"></div>
+      <p id="t-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></p>
 
-      <!-- Maklumat lokasi -->
+      <!-- Sejarah -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-        <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Lokasi Semasa</h2>
-        <dl class="grid grid-cols-2 gap-y-3 text-sm">
-          <dt class="text-slate-500">Latitud</dt><dd id="t-lat" class="text-right font-mono">–</dd>
-          <dt class="text-slate-500">Longitud</dt><dd id="t-lng" class="text-right font-mono">–</dd>
-          <dt class="text-slate-500">Ketepatan</dt><dd id="t-acc" class="text-right">–</dd>
-          <dt class="text-slate-500">Kemas kini</dt><dd id="t-time" class="text-right">–</dd>
-          <dt class="text-slate-500">Geofence</dt><dd class="text-right"><span id="t-geo" class="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600">–</span></dd>
-        </dl>
+        <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Rekod Terkini</h2>
+        <ul id="t-history" class="divide-y divide-slate-100 text-sm"></ul>
+        <p id="t-history-empty" class="hidden text-sm text-slate-500">Belum ada rekod check-in.</p>
       </div>
 
       <!-- Panduan -->
@@ -110,10 +100,10 @@
         </summary>
         <ol class="px-5 pb-5 text-sm text-slate-600 space-y-2 list-decimal list-inside">
           <li><b>Pasang app:</b> Android Chrome &rarr; menu &#8942; &rarr; <i>Install app</i>. iPhone Safari &rarr; Kongsi &rarr; <i>Add to Home Screen</i>.</li>
-          <li>Tekan <b>Mula Kongsi Lokasi</b> dan pilih <i>Allow</i> / <i>Benarkan semasa menggunakan app</i>.</li>
-          <li><b>Biarkan app terbuka</b> semasa waktu bertugas. Skrin akan dikekalkan menyala secara automatik.</li>
-          <li>Kongsi lokasi berhenti sendiri apabila tamat waktu bertugas.</li>
-          <li>Jika status menjadi <i>Offline</i>, buka semula app dan tekan Mula.</li>
+          <li>Daftar lokasi rumah <b>sekali</b> semasa berada di rumah.</li>
+          <li>Setiap sesi, tekan <b>Check-in</b> pada atau sebelum waktu mula. Benarkan akses lokasi apabila diminta.</li>
+          <li>Hidupkan GPS dan lakukan check-in di dalam atau berhampiran rumah.</li>
+          <li>Lokasi anda hanya direkod pada saat check-in. <b>Tiada penjejakan berterusan.</b></li>
         </ol>
         <div class="px-5 pb-5"><button id="install-btn" class="hidden w-full rounded-xl border border-indigo-200 text-indigo-700 font-semibold py-2.5">Pasang App ke Skrin Utama</button></div>
       </details>
@@ -125,11 +115,11 @@
     <header class="sticky top-0 z-[1000] bg-white/90 backdrop-blur border-b border-slate-200 safe-top">
       <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
         <div class="h-10 w-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10"/></svg>
         </div>
         <div class="min-w-0 flex-1">
           <p id="a-school" class="font-bold truncate"></p>
-          <p class="text-xs text-slate-500">Pemantauan Keberadaan Guru &middot; <span id="a-clock"></span></p>
+          <p class="text-xs text-slate-500">Check-in Guru PdPR &middot; <span id="a-clock"></span></p>
         </div>
         <span id="a-name" class="hidden sm:inline text-sm text-slate-500"></span>
         <button id="btn-manage" class="rounded-xl bg-indigo-600 text-white px-3 py-2 text-sm font-medium hover:bg-indigo-700">Urus Guru</button>
@@ -139,11 +129,11 @@
     </header>
 
     <main class="max-w-7xl mx-auto p-4 space-y-4">
-      <!-- Stats -->
       <div id="a-stats" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"></div>
 
-      <!-- Filter -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex flex-col sm:flex-row gap-3">
+      <!-- Penapis -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex flex-col lg:flex-row gap-3">
+        <input id="f-date" type="date" class="rounded-xl border border-slate-300 px-3 py-2" />
         <input id="f-q" type="search" placeholder="Cari nama guru…" class="flex-1 rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         <select id="f-session" class="rounded-xl border border-slate-300 px-3 py-2 bg-white">
           <option value="">Semua sesi</option>
@@ -152,32 +142,32 @@
         </select>
         <select id="f-status" class="rounded-xl border border-slate-300 px-3 py-2 bg-white">
           <option value="">Semua status</option>
-          <option value="online">Aktif</option>
-          <option value="luar-zon">Luar Zon</option>
-          <option value="offline">Offline</option>
-          <option value="tidak-bertugas">Tidak Bertugas</option>
+          <option value="hadir">Hadir (tepat masa)</option>
+          <option value="lewat">Lewat</option>
+          <option value="belum">Belum check-in</option>
+          <option value="tidak-hadir">Tidak hadir</option>
+          <option value="luar-lokasi">Luar lokasi rumah</option>
         </select>
+        <button id="btn-export" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-100">Eksport CSV</button>
       </div>
 
       <div class="grid lg:grid-cols-5 gap-4">
-        <!-- Peta -->
         <div class="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div id="map" class="h-[420px] lg:h-full w-full"></div>
         </div>
-        <!-- Senarai -->
         <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-            <h2 class="font-semibold">Senarai Guru</h2>
+            <h2 class="font-semibold">Kehadiran</h2>
             <span id="a-count" class="text-xs text-slate-500"></span>
           </div>
           <div class="max-h-[560px] overflow-y-auto">
             <table class="w-full text-sm">
               <thead class="sticky top-0 bg-slate-50 text-xs text-slate-500 uppercase">
-                <tr><th class="text-left px-4 py-2">Guru</th><th class="text-left px-2 py-2">Status</th><th class="text-right px-4 py-2">Kemas kini</th></tr>
+                <tr><th class="text-left px-4 py-2">Guru</th><th class="text-left px-2 py-2">Status</th><th class="text-right px-4 py-2">Masa</th></tr>
               </thead>
               <tbody id="a-rows" class="divide-y divide-slate-100"></tbody>
             </table>
-            <p id="a-empty" class="hidden p-6 text-center text-sm text-slate-500">Tiada guru sepadan.</p>
+            <p id="a-empty" class="hidden p-6 text-center text-sm text-slate-500"></p>
           </div>
         </div>
       </div>
@@ -185,7 +175,7 @@
   </section>
 
   <!-- ============ DIALOG: URUS GURU ============ -->
-  <dialog id="dlg-teachers" class="w-[min(42rem,calc(100%-2rem))] rounded-2xl p-0 backdrop:bg-slate-900/50">
+  <dialog id="dlg-teachers" class="w-[min(44rem,calc(100%-2rem))] rounded-2xl p-0 backdrop:bg-slate-900/50">
     <div class="p-5 space-y-4">
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-bold">Urus Guru</h2>
@@ -208,42 +198,44 @@
       <div class="max-h-[40vh] overflow-y-auto border border-slate-200 rounded-xl">
         <table class="w-full text-sm">
           <thead class="sticky top-0 bg-slate-50 text-xs text-slate-500 uppercase">
-            <tr><th class="text-left px-3 py-2">Guru</th><th class="text-left px-3 py-2">Sesi</th><th class="px-3 py-2">Aktif</th></tr>
+            <tr><th class="text-left px-3 py-2">Guru</th><th class="text-left px-3 py-2">Sesi</th><th class="px-3 py-2">Rumah</th><th class="px-3 py-2">Aktif</th></tr>
           </thead>
           <tbody id="m-rows" class="divide-y divide-slate-100"></tbody>
         </table>
         <p id="m-empty" class="hidden p-6 text-center text-sm text-slate-500">Belum ada guru.</p>
       </div>
-      <p class="text-xs text-slate-500">Nyahaktifkan guru menghalang log masuk dan menyembunyikannya dari dashboard. Untuk memadam akaun sepenuhnya, gunakan Firebase Console.</p>
+      <p class="text-xs text-slate-500">Guru mendaftar lokasi rumah sendiri sekali sahaja. Gunakan <b>Reset</b> jika guru berpindah rumah atau tersilap daftar. Nyahaktifkan guru menghalang log masuk; untuk memadam akaun sepenuhnya gunakan Firebase Console.</p>
     </div>
   </dialog>
 
-  <!-- ============ DIALOG: TETAPAN SEKOLAH ============ -->
+  <!-- ============ DIALOG: TETAPAN ============ -->
   <dialog id="dlg-settings" class="w-[min(36rem,calc(100%-2rem))] rounded-2xl p-0 backdrop:bg-slate-900/50">
     <form id="s-form" class="p-5 space-y-4">
       <div class="flex items-center justify-between">
-        <h2 class="text-lg font-bold">Tetapan Sekolah</h2>
+        <h2 class="text-lg font-bold">Tetapan</h2>
         <button type="button" data-close class="p-2 rounded-lg hover:bg-slate-100" aria-label="Tutup">&#x2715;</button>
       </div>
       <label class="block text-sm font-medium">Nama sekolah
         <input id="s-name" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" /></label>
       <div class="grid grid-cols-2 gap-3">
-        <label class="block text-sm font-medium">Latitud
+        <label class="block text-sm font-medium">Pusat peta: latitud
           <input id="s-lat" type="number" step="any" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" /></label>
-        <label class="block text-sm font-medium">Longitud
+        <label class="block text-sm font-medium">Pusat peta: longitud
           <input id="s-lng" type="number" step="any" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" /></label>
       </div>
-      <button type="button" id="s-here" class="text-sm text-indigo-600 font-medium">&#9678; Guna lokasi semasa saya sebagai pusat sekolah</button>
-      <div class="grid grid-cols-2 gap-3">
-        <label class="block text-sm font-medium">Radius (meter)
-          <input id="s-radius" type="number" min="20" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" /></label>
-        <label class="block text-sm font-medium">Offline selepas (min)
-          <input id="s-stale" type="number" min="2" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" /></label>
+      <button type="button" id="s-here" class="text-sm text-indigo-600 font-medium">&#9678; Guna lokasi semasa saya</button>
+      <div class="grid grid-cols-3 gap-3">
+        <label class="block text-sm font-medium">Radius rumah (m)
+          <input id="s-radius" type="number" min="30" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" /></label>
+        <label class="block text-sm font-medium">Dibuka (min awal)
+          <input id="s-open" type="number" min="0" max="180" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" /></label>
+        <label class="block text-sm font-medium">Toleransi lewat (min)
+          <input id="s-grace" type="number" min="0" max="60" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" /></label>
       </div>
       <div class="grid grid-cols-2 gap-3">
-        <div><p class="text-sm font-medium mb-1">Sesi Pagi</p>
+        <div><p class="text-sm font-medium mb-1">Sesi Pagi (mula / tamat)</p>
           <div class="flex gap-2"><input id="s-pagi-start" type="time" required class="w-full rounded-xl border border-slate-300 px-2 py-2" /><input id="s-pagi-end" type="time" required class="w-full rounded-xl border border-slate-300 px-2 py-2" /></div></div>
-        <div><p class="text-sm font-medium mb-1">Sesi Petang</p>
+        <div><p class="text-sm font-medium mb-1">Sesi Petang (mula / tamat)</p>
           <div class="flex gap-2"><input id="s-petang-start" type="time" required class="w-full rounded-xl border border-slate-300 px-2 py-2" /><input id="s-petang-end" type="time" required class="w-full rounded-xl border border-slate-300 px-2 py-2" /></div></div>
       </div>
       <p id="s-msg" class="hidden"></p>
