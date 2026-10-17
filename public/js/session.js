@@ -53,7 +53,7 @@ export const sessionsOf = (teacherSession) =>
 export function windowState(sessionName, config, date = new Date()) {
   const tz = config.timezone;
   const day = weekdayNow(tz, date);
-  if (day === 0 || day === 6) return { state: "cuti" };
+  if ((day === 0 || day === 6) && !config.allowWeekend) return { state: "cuti" };
 
   const s = config.sessions[sessionName];
   const now = minutesNow(tz, date);

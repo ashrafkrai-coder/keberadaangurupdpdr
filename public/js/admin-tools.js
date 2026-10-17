@@ -117,6 +117,7 @@ export function initAdminTools(state) {
     $("s-radius").value = c.homeRadiusMeters;
     $("s-open").value = c.checkinOpenBeforeMin;
     $("s-grace").value = c.graceMinutes;
+    $("s-weekend").checked = !!c.allowWeekend;
     $("s-pagi-start").value = c.sessions.pagi.start;
     $("s-pagi-end").value = c.sessions.pagi.end;
     $("s-petang-start").value = c.sessions.petang.start;
@@ -133,6 +134,7 @@ export function initAdminTools(state) {
       homeRadiusMeters: parseInt($("s-radius").value, 10),
       checkinOpenBeforeMin: parseInt($("s-open").value, 10),
       graceMinutes: parseInt($("s-grace").value, 10),
+      allowWeekend: $("s-weekend").checked,
       timezone: state.config.timezone || "Asia/Kuala_Lumpur",
       sessions: {
         pagi: { start: $("s-pagi-start").value, end: $("s-pagi-end").value },

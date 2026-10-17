@@ -568,7 +568,7 @@ function buildSlots() {
   const cfg = state.config;
   const today = dateKey(cfg.timezone);
   const day = weekdayOfKey(state.date);
-  if (day === 0 || day === 6) return [];
+  if ((day === 0 || day === 6) && !cfg.allowWeekend) return [];
 
   const byKey = new Map(state.checkins.map((c) => [`${c.uid}_${c.session}`, c]));
   const slots = [];
@@ -602,7 +602,7 @@ let lastList = [];
 function renderAdmin() {
   const cfg = state.config;
   const slots = buildSlots();
-  const weekend = [0, 6].includes(weekdayOfKey(state.date));
+  const weekend = [0, 6].includes(weekdayOfKey(state.date)) && !cfg.allowWeekend;
 
   const n = (fn) => slots.filter(fn).length;
   $("a-stats").innerHTML =
