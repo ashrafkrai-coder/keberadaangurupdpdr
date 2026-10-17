@@ -1,6 +1,6 @@
 import { auth, db } from "./firebase-init.js";
 import {
-  signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup,
+  signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithCredential,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, orderBy, limit, serverTimestamp,
@@ -9,6 +9,7 @@ import {
   DEFAULT_CONFIG, windowState, isLateAt, homeCheck, dateKey, weekdayOfKey, sessionsOf, minutesNow,
 } from "./session.js";
 import { initAdminTools } from "./admin-tools.js";
+import { isNativePlatform, startGeofenceTracking, stopGeofenceTracking, isTracking } from "./geofenceService.js";
 
 /* ---------------- Utiliti ---------------- */
 const $ = (id) => document.getElementById(id);
@@ -75,6 +76,7 @@ const state = {
   timers: [],
 };
 let ciUnsub = null;
+const auto = { inside: null, point: null, error: "", busy: false, retryAt: 0, chain: Promise.resolve() };
 
 function cleanup() {
   state.unsubs.forEach((u) => u());
@@ -83,6 +85,8 @@ function cleanup() {
   state.timers = [];
   ciUnsub?.();
   ciUnsub = null;
+  stopGeofenceTracking().catch(() => {}); // matikan GPS dan notifikasi latar belakang
+  Object.assign(auto, { inside: null, point: null, error: "", retryAt: 0 });
 }
 
 /* ---------------- Auth ---------------- */
@@ -104,6 +108,7 @@ $("login-form").addEventListener("submit", async (e) => {
 document.querySelectorAll("[data-logout]").forEach((b) =>
   b.addEventListener("click", async () => {
     cleanup();
+    if (isNativePlatform()) await nativeAuth().signOut().catch(() => {}); // lupa akaun Google supaya boleh pilih semula
     await signOut(auth);
   })
 );
@@ -119,12 +124,27 @@ function loginError(id, msg) {
   el.classList.remove("hidden");
 }
 
+// Pemalam native (hanya wujud dalam app Capacitor). Google menyekat OAuth dalam WebView,
+// jadi log masuk native digunakan, kemudian token ID ditukar kepada sesi Firebase JS.
+let nativeAuthPlugin = null;
+const nativeAuth = () => (nativeAuthPlugin ??= window.Capacitor.registerPlugin("FirebaseAuthentication"));
+
+async function signInWithGoogle() {
+  if (!isNativePlatform()) return signInWithPopup(auth, googleProvider);
+  const res = await nativeAuth().signInWithGoogle({ skipNativeAuth: true });
+  const idToken = res.credential?.idToken;
+  if (!idToken) throw { code: "auth/no-id-token", message: "Token Google tidak diterima." };
+  return signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+}
+
 $("google-btn").addEventListener("click", async () => {
   $("google-error").classList.add("hidden");
   try {
-    await signInWithPopup(auth, googleProvider);
+    await signInWithGoogle();
   } catch (ex) {
     if (ex.code === "auth/popup-closed-by-user" || ex.code === "auth/cancelled-popup-request") return;
+    // Pengguna membatalkan pilihan akaun dalam dialog native
+    if (/cancel/i.test(String(ex.code || ex.message))) return;
     loginError(
       "google-error",
       ex.code === "auth/popup-blocked"
@@ -322,22 +342,43 @@ function renderTeacher() {
           <span class="rounded-full px-2 py-0.5 text-xs font-semibold ${st.badge}">${st.label}</span></div></li>`;
     })
     .join("");
+
+  syncAuto();
+  renderAuto();
+  tryAutoCheckin();
 }
 
-// Check-in
+/* ---------- Check-in (manual dan automatik berkongsi satu fungsi) ---------- */
+const hasCheckedIn = (name, key) => state.myCheckins.some((c) => c.date === key && c.session === name);
+
+/** @returns {Promise<boolean>} true jika rekod baharu dicipta */
+async function submitCheckin(name, point) {
+  const cfg = state.config;
+  const w = windowState(name, cfg);
+  const key = dateKey(cfg.timezone);
+  if (w.state !== "buka") throw { message: "Check-in tidak dibuka pada masa ini." };
+  if (!state.me.home) throw { message: "Daftar lokasi rumah dahulu." };
+  if (hasCheckedIn(name, key)) return false;
+
+  const hc = homeCheck(point, state.me.home, cfg);
+  await setDoc(doc(db, "checkins", `${key}_${state.user.uid}_${name}`), {
+    uid: state.user.uid,
+    name: state.me.name,
+    date: key,
+    session: name,
+    timestamp: serverTimestamp(),
+    location: point,
+    distanceFromHome: hc.distance,
+    homeStatus: hc.status,
+    late: !!w.late,
+  });
+  return true;
+}
+
 $("t-slots").addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-checkin]");
   if (!btn) return;
-  const name = btn.dataset.checkin;
-  const cfg = state.config;
   showTeacherError("");
-
-  const w = windowState(name, cfg);
-  const key = dateKey(cfg.timezone);
-  if (w.state !== "buka") return showTeacherError("Check-in tidak dibuka pada masa ini.");
-  if (!state.me.home) return showTeacherError("Daftar lokasi rumah dahulu.");
-  if (state.myCheckins.some((c) => c.date === key && c.session === name)) return;
-
   btn.disabled = true;
   btn.textContent = "Mengesan lokasi…";
   try {
@@ -346,23 +387,107 @@ $("t-slots").addEventListener("click", async (e) => {
     if (point.accuracy > 500) {
       throw { message: `Isyarat GPS lemah (±${point.accuracy} m). Hidupkan GPS dan cuba di tempat terbuka.` };
     }
-    const hc = homeCheck(point, state.me.home, cfg);
-    await setDoc(doc(db, "checkins", `${key}_${state.user.uid}_${name}`), {
-      uid: state.user.uid,
-      name: state.me.name,
-      date: key,
-      session: name,
-      timestamp: serverTimestamp(),
-      location: point,
-      distanceFromHome: hc.distance,
-      homeStatus: hc.status,
-      late: !!w.late,
-    });
+    await submitCheckin(btn.dataset.checkin, point);
   } catch (ex) {
     showTeacherError(geoMessage(ex));
   } finally {
     renderTeacher();
   }
+});
+
+/* ---------- Check-in automatik di rumah (geofence latar belakang) ---------- */
+const autoKey = () => `autoCheckin:${state.user?.uid}`;
+const autoEnabled = () => { try { return localStorage.getItem(autoKey()) === "1"; } catch { return false; } };
+const setAutoEnabled = (v) => { try { localStorage.setItem(autoKey(), v ? "1" : "0"); } catch {} };
+
+/** Sesi hari ini yang belum check-in dan belum tamat. */
+function pendingSessions() {
+  const cfg = state.config;
+  const key = dateKey(cfg.timezone);
+  return sessionsOf(state.me.session).filter((n) => {
+    const w = windowState(n, cfg);
+    return (w.state === "buka" || w.state === "belum-buka") && !hasCheckedIn(n, key);
+  });
+}
+
+function onZone({ inside, location }) {
+  auto.inside = inside;
+  auto.point = { lat: location.lat, lng: location.lng, accuracy: Math.round(location.accuracy || 0) };
+  tryAutoCheckin();
+  renderAuto();
+}
+
+async function tryAutoCheckin() {
+  if (auto.busy || !auto.inside || !auto.point || !state.me?.home) return;
+  if (auto.point.accuracy > 200 || Date.now() < auto.retryAt) return;
+  const cfg = state.config;
+  const key = dateKey(cfg.timezone);
+  const name = sessionsOf(state.me.session).find((n) => windowState(n, cfg).state === "buka" && !hasCheckedIn(n, key));
+  if (!name) return;
+
+  auto.busy = true;
+  try {
+    await submitCheckin(name, auto.point);
+    auto.error = "";
+  } catch (ex) {
+    auto.retryAt = Date.now() + 60000; // elak ulangan pantas jika gagal
+    auto.error = geoMessage(ex);
+  } finally {
+    auto.busy = false;
+    renderTeacher();
+  }
+}
+
+/** Mula/henti penjejakan mengikut keperluan semasa (disiri supaya tidak bertindih). */
+function syncAuto() {
+  auto.chain = auto.chain.then(async () => {
+    const t = state.me;
+    if (!t || !state.user) return;
+    const want = autoEnabled() && !!t.home && pendingSessions().length > 0;
+    try {
+      if (want && !isTracking()) {
+        auto.inside = null;
+        await startGeofenceTracking(
+          [{ id: "rumah", lat: t.home.lat, lng: t.home.lng, radiusMeters: state.config.homeRadiusMeters }],
+          onZone,
+          (msg) => { auto.error = msg; renderAuto(); }
+        );
+      } else if (!want && isTracking()) {
+        await stopGeofenceTracking();
+        Object.assign(auto, { inside: null, point: null });
+      }
+    } catch (ex) {
+      auto.error = geoMessage(ex);
+    }
+    renderAuto();
+  });
+}
+
+function renderAuto() {
+  const t = state.me;
+  const card = $("t-auto-card");
+  card.classList.toggle("hidden", !t?.home);
+  if (!t?.home) return;
+
+  $("t-auto").checked = autoEnabled();
+  $("t-auto-note").classList.toggle("hidden", isNativePlatform());
+
+  let text = "";
+  if (auto.error) text = auto.error;
+  else if (!autoEnabled()) text = "";
+  else if (!pendingSessions().length) text = "Semua sesi hari ini telah selesai. Penjejakan dihentikan.";
+  else if (!isTracking() || auto.inside === null) text = "Mengesan lokasi…";
+  else text = auto.inside ? "Anda berada di zon rumah." : "Anda berada di luar zon rumah.";
+  const el = $("t-auto-state");
+  el.textContent = text;
+  el.className = "mt-2 text-xs " + (auto.error ? "text-red-600" : "text-slate-500");
+}
+
+$("t-auto").addEventListener("change", (e) => {
+  setAutoEnabled(e.target.checked);
+  auto.error = "";
+  syncAuto();
+  renderAuto();
 });
 
 // Daftar lokasi rumah

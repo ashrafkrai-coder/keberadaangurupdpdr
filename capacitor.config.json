@@ -1,0 +1,14 @@
+{
+  "appId": "my.edu.keberadaanguru",
+  "appName": "Keberadaan Guru",
+  "webDir": "public",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": ["google.com"]
+    }
+  }
+}

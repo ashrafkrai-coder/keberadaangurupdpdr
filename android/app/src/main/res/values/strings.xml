@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Keberadaan Guru</string>
+    <string name="title_activity_main">Keberadaan Guru</string>
+    <string name="package_name">my.edu.keberadaanguru</string>
+    <string name="custom_url_scheme">my.edu.keberadaanguru</string>
+</resources>
