@@ -33,10 +33,10 @@ export function initAdminTools(state) {
         .map(
           (t) => `<tr data-uid="${esc(t.id)}">
             <td class="px-3 py-2"><p class="font-medium">${esc(t.name)}${t.pending === true && t.active === false ? ' <span class="ml-1 rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs font-semibold">Menunggu kelulusan</span>' : ""}</p><p class="text-xs text-slate-500">${esc(t.email)}</p></td>
-            <td class="px-3 py-2"><select data-f="session" class="rounded-lg border border-slate-300 px-2 py-1 bg-white text-sm">
+            <td data-label="Sesi" class="px-3 py-2"><select aria-label="Sesi mengajar" data-f="session" class="rounded-lg border border-slate-300 px-2 py-1 bg-white text-sm">
               ${SESSIONS.map(([v, l]) => `<option value="${v}" ${t.session === v ? "selected" : ""}>${l}</option>`).join("")}</select></td>
-            <td class="px-3 py-2 text-center text-xs">${t.home ? `<span class="text-green-600">Berdaftar</span> <button data-reset-home class="ml-1 text-red-600 underline">Reset</button>` : `<span class="text-slate-400">Belum</span>`}</td>
-            <td class="px-3 py-2 text-center"><input data-f="active" type="checkbox" class="h-4 w-4" ${t.active !== false ? "checked" : ""} /></td></tr>`
+            <td data-label="Rumah" class="px-3 py-2 text-center text-xs">${t.home ? `<span class="text-green-600">Berdaftar</span> <button data-reset-home class="ml-1 text-red-600 underline">Reset</button>` : `<span class="text-slate-400">Belum</span>`}</td>
+            <td data-label="Aktif" class="px-3 py-2 text-center"><input aria-label="Akaun aktif" data-f="active" type="checkbox" class="h-4 w-4" ${t.active !== false ? "checked" : ""} /></td></tr>`
         )
         .join("");
       $("m-empty").classList.toggle("hidden", rows.length > 0);
