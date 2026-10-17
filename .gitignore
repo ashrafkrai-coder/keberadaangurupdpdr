@@ -3,8 +3,3 @@ node_modules/
 *.log
 .env
 .kilo/
-android/app/build/
-android/.gradle/
-android/build/
-android/local.properties
-ios/App/Pods/

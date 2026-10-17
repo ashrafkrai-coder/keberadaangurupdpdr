@@ -1,33 +1,16 @@
 /**
- * Perkhidmatan geofence dengan ketepatan adaptif.
+ * Perkhidmatan geofence untuk PWA (navigator.geolocation.watchPosition).
  *
- *  - NATIVE (Android/iOS via Capacitor): @capacitor-community/background-geolocation.
- *    GPS kekal berfungsi apabila skrin ditutup (notifikasi kekal di Android).
- *  - BROWSER: sandaran navigator.geolocation.watchPosition (tertakluk had pelayar;
- *    app mesti kekal terbuka).
+ * Had pelayar: penjejakan terhenti apabila skrin dikunci atau app ditutup, jadi app
+ * mesti kekal terbuka.
  *
- * Mod bateri:  JAUH (> 500 m dari semua sasaran) -> distanceFilter 100 m (jimat bateri)
- *              DEKAT (<= 500 m dari mana-mana)   -> distanceFilter 10 m  (ketepatan tinggi)
- *
- * Fail ini dimuat terus sebagai modul ES (tiada langkah bundler), jadi pemalam native
- * dicapai melalui Capacitor.registerPlugin(), bukan import npm.
+ * Mod ketepatan adaptif (meniru distanceFilter dengan enableHighAccuracy):
+ *   JAUH  (> 500 m dari semua sasaran) -> ketepatan biasa (jimat bateri)
+ *   DEKAT (<= 500 m dari mana-mana)    -> ketepatan tinggi
  */
 
 const NEAR_THRESHOLD_M = 500;
-const FILTER_FAR = 100;
-const FILTER_NEAR = 10;
 const MAX_TOLERANCE_M = 100; // tambahan radius maksimum untuk ketepatan GPS yang lemah
-
-/* ---------------- Pengesanan platform ---------------- */
-export function isNativePlatform() {
-  return !!(typeof window !== "undefined" && window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform());
-}
-
-let bgPlugin = null;
-function getBackgroundGeolocation() {
-  if (!bgPlugin) bgPlugin = window.Capacitor.registerPlugin("BackgroundGeolocation");
-  return bgPlugin;
-}
 
 /* ---------------- Formula Haversine ---------------- */
 export function getDistanceInMeters(lat1, lon1, lat2, lon2) {
@@ -46,7 +29,7 @@ export function isInsideGeofence(userLat, userLng, fenceLat, fenceLng, radiusMet
 }
 
 /* ---------------- Keadaan tracker ---------------- */
-let session = null; // { targets, onChange, onError, mode, watcherId, watchId, status:Map, switching, stopped }
+let session = null; // { targets, onChange, onError, highAccuracy, watchId, status:Map, stopped }
 
 export function isTracking() {
   return session !== null && !session.stopped;
@@ -57,7 +40,6 @@ export function isTracking() {
  * @param {{id:string, lat:number, lng:number, radiusMeters:number}[]} geofenceTargets
  * @param {(e:{inside:boolean, geofenceId:string, location:object, distance:number}) => void} onZoneStatusChange
  * @param {(msg:string, code?:string) => void} [onError]
- * @returns {Promise<void>}
  */
 export async function startGeofenceTracking(geofenceTargets, onZoneStatusChange, onError = console.error) {
   if (session && !session.stopped) await stopGeofenceTracking();
@@ -65,57 +47,25 @@ export async function startGeofenceTracking(geofenceTargets, onZoneStatusChange,
     targets: geofenceTargets,
     onChange: onZoneStatusChange,
     onError,
-    mode: null,
-    watcherId: null,
+    highAccuracy: false,
     watchId: null,
     status: new Map(), // geofenceId -> boolean (dalam/luar)
-    switching: false,
     stopped: false,
   };
-  await startWatch(session, FILTER_FAR); // bermula dalam mod jimat; beralih sendiri selepas fix pertama
+  startWatch(session);
 }
 
-/** Henti penjejakan: buang watcher, GPS dan notifikasi kekal dimatikan. */
+/** Henti penjejakan dan lepaskan GPS. */
 export async function stopGeofenceTracking() {
   const s = session;
   if (!s) return;
   s.stopped = true;
   session = null;
-  await stopWatch(s);
+  stopWatch(s);
 }
 
-/* ---------------- Watcher: native vs sandaran ---------------- */
-async function startWatch(s, distanceFilter) {
-  s.mode = distanceFilter;
-
-  if (isNativePlatform()) {
-    const BG = getBackgroundGeolocation();
-    s.watcherId = await BG.addWatcher(
-      {
-        backgroundTitle: "Penjejakan Geofence Aktif",
-        backgroundMessage: "Aplikasi sedang mengesan zon lokasi di latar belakang.",
-        requestPermissions: true,
-        stale: false,
-        distanceFilter,
-      },
-      (location, error) => {
-        if (s.stopped) return;
-        if (error) {
-          if (error.code === "NOT_AUTHORIZED") {
-            s.onError("Kebenaran lokasi diperlukan. Pilih 'Sentiasa benarkan' dalam tetapan app.", error.code);
-            BG.openSettings().catch(() => {});
-          } else {
-            s.onError(error.message || "Ralat lokasi.", error.code);
-          }
-          return;
-        }
-        if (location) handleLocation(s, { lat: location.latitude, lng: location.longitude, accuracy: location.accuracy, simulated: !!location.simulated, time: location.time });
-      }
-    );
-    return;
-  }
-
-  // Sandaran pelayar. enableHighAccuracy meniru mod dekat/jauh (distanceFilter tiada dalam pelayar).
+/* ---------------- Watcher ---------------- */
+function startWatch(s) {
   if (!("geolocation" in navigator)) {
     s.onError("Peranti ini tidak menyokong Geolocation.", "UNSUPPORTED");
     return;
@@ -123,7 +73,7 @@ async function startWatch(s, distanceFilter) {
   s.watchId = navigator.geolocation.watchPosition(
     (pos) => {
       if (s.stopped) return;
-      handleLocation(s, { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, simulated: false, time: pos.timestamp });
+      handleLocation(s, { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, time: pos.timestamp });
     },
     (err) => {
       if (s.stopped) return;
@@ -132,27 +82,17 @@ async function startWatch(s, distanceFilter) {
         err.code === 1 ? "NOT_AUTHORIZED" : "POSITION_UNAVAILABLE"
       );
     },
-    { enableHighAccuracy: distanceFilter === FILTER_NEAR, maximumAge: 15000, timeout: 30000 }
+    { enableHighAccuracy: s.highAccuracy, maximumAge: 15000, timeout: 30000 }
   );
 }
 
-async function stopWatch(s) {
-  try {
-    if (s.watcherId !== null && isNativePlatform()) {
-      await getBackgroundGeolocation().removeWatcher({ id: s.watcherId });
-    }
-    if (s.watchId !== null && "geolocation" in navigator) navigator.geolocation.clearWatch(s.watchId);
-  } catch (e) {
-    console.warn("stopWatch:", e);
-  }
-  s.watcherId = null;
+function stopWatch(s) {
+  if (s.watchId !== null && "geolocation" in navigator) navigator.geolocation.clearWatch(s.watchId);
   s.watchId = null;
 }
 
 /* ---------------- Penilaian lokasi ---------------- */
-async function handleLocation(s, loc) {
-  if (loc.simulated) return; // abaikan lokasi palsu (mock location)
-
+function handleLocation(s, loc) {
   const tolerance = Math.min(loc.accuracy || 0, MAX_TOLERANCE_M);
   let minDistance = Infinity;
 
@@ -171,15 +111,11 @@ async function handleLocation(s, loc) {
     }
   }
 
-  // Tukar mod ketepatan jika perlu
-  const wanted = minDistance <= NEAR_THRESHOLD_M ? FILTER_NEAR : FILTER_FAR;
-  if (wanted !== s.mode && !s.switching && !s.stopped) {
-    s.switching = true;
-    try {
-      await stopWatch(s);
-      if (!s.stopped) await startWatch(s, wanted);
-    } finally {
-      s.switching = false;
-    }
+  // Tukar mod ketepatan jika perlu (mulakan semula watcher)
+  const wantHigh = minDistance <= NEAR_THRESHOLD_M;
+  if (wantHigh !== s.highAccuracy && !s.stopped) {
+    s.highAccuracy = wantHigh;
+    stopWatch(s);
+    startWatch(s);
   }
 }

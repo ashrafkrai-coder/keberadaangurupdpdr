@@ -1,6 +1,6 @@
 import { auth, db } from "./firebase-init.js";
 import {
-  signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithCredential,
+  signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, orderBy, limit, serverTimestamp,
@@ -9,7 +9,7 @@ import {
   DEFAULT_CONFIG, windowState, isLateAt, homeCheck, dateKey, weekdayOfKey, sessionsOf, minutesNow,
 } from "./session.js";
 import { initAdminTools } from "./admin-tools.js";
-import { isNativePlatform, startGeofenceTracking, stopGeofenceTracking, isTracking } from "./geofenceService.js";
+import { startGeofenceTracking, stopGeofenceTracking, isTracking } from "./geofenceService.js";
 
 /* ---------------- Utiliti ---------------- */
 const $ = (id) => document.getElementById(id);
@@ -108,7 +108,6 @@ $("login-form").addEventListener("submit", async (e) => {
 document.querySelectorAll("[data-logout]").forEach((b) =>
   b.addEventListener("click", async () => {
     cleanup();
-    if (isNativePlatform()) await nativeAuth().signOut().catch(() => {}); // lupa akaun Google supaya boleh pilih semula
     await signOut(auth);
   })
 );
@@ -124,27 +123,12 @@ function loginError(id, msg) {
   el.classList.remove("hidden");
 }
 
-// Pemalam native (hanya wujud dalam app Capacitor). Google menyekat OAuth dalam WebView,
-// jadi log masuk native digunakan, kemudian token ID ditukar kepada sesi Firebase JS.
-let nativeAuthPlugin = null;
-const nativeAuth = () => (nativeAuthPlugin ??= window.Capacitor.registerPlugin("FirebaseAuthentication"));
-
-async function signInWithGoogle() {
-  if (!isNativePlatform()) return signInWithPopup(auth, googleProvider);
-  const res = await nativeAuth().signInWithGoogle({ skipNativeAuth: true });
-  const idToken = res.credential?.idToken;
-  if (!idToken) throw { code: "auth/no-id-token", message: "Token Google tidak diterima." };
-  return signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
-}
-
 $("google-btn").addEventListener("click", async () => {
   $("google-error").classList.add("hidden");
   try {
-    await signInWithGoogle();
+    await signInWithPopup(auth, googleProvider);
   } catch (ex) {
     if (ex.code === "auth/popup-closed-by-user" || ex.code === "auth/cancelled-popup-request") return;
-    // Pengguna membatalkan pilihan akaun dalam dialog native
-    if (/cancel/i.test(String(ex.code || ex.message))) return;
     loginError(
       "google-error",
       ex.code === "auth/popup-blocked"
@@ -470,7 +454,6 @@ function renderAuto() {
   if (!t?.home) return;
 
   $("t-auto").checked = autoEnabled();
-  $("t-auto-note").classList.toggle("hidden", isNativePlatform());
 
   let text = "";
   if (auto.error) text = auto.error;
