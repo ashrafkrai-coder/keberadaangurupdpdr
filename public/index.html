@@ -17,11 +17,53 @@
   <style>
     body { background: #f1f5f9; }
     .safe-top { padding-top: env(safe-area-inset-top); }
-    .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
     details > summary { list-style: none; }
     details > summary::-webkit-details-marker { display: none; }
     details[open] .chev { transform: rotate(180deg); }
-    #map { min-height: 360px; z-index: 0; }
+    #map { min-height: 360px; z-index: 0; scroll-margin-top: 9rem; }
+    input:not([type="checkbox"]), select { min-width: 0; max-width: 100%; }
+    button, summary { touch-action: manipulation; }
+    button:focus-visible, summary:focus-visible { outline: 3px solid #6366f1; outline-offset: 3px; }
+    .safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+    #view-login, #view-register, #view-pending {
+      min-height: 100dvh;
+      padding-top: max(1rem, env(safe-area-inset-top));
+    }
+    #dlg-teachers, #dlg-settings {
+      width: calc(100% - 2rem);
+      max-height: calc(100dvh - 2rem);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    #dlg-teachers { max-width: 44rem; }
+    #dlg-settings { max-width: 36rem; }
+    #m-add > *, #s-form label, #s-form .grid > div { min-width: 0; }
+    #a-rows td, #m-rows td { overflow-wrap: anywhere; }
+    @media (max-width: 639px) {
+      input:not([type="checkbox"]), select { font-size: 16px; min-height: 44px; }
+      button { min-height: 44px; }
+      [data-close], #view-teacher [data-logout] { min-width: 44px; }
+      #google-btn svg, #t-auto, #s-weekend { flex-shrink: 0; }
+      #view-admin header > div { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .5rem; }
+      #view-admin header > div > :nth-child(2) { grid-column: span 5; }
+      #view-admin header button { grid-column: span 2; padding-inline: .5rem; white-space: nowrap; }
+      #view-admin header > div > :first-child { width: 40px; }
+      #map { min-height: 300px; height: 45svh; max-height: 420px; }
+      #view-admin main > .grid > div { min-width: 0; }
+      #a-rows td { padding: .75rem .5rem; }
+      #a-rows td:first-child { width: 45%; }
+      #dlg-teachers > div, #s-form { padding: 1rem; }
+      #dlg-teachers table, #m-rows { display: block; }
+      #dlg-teachers thead { display: none; }
+      #m-rows tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: .75rem; gap: .5rem; }
+      #m-rows td { display: block; min-width: 0; padding: 0; text-align: left; }
+      #m-rows td:first-child, #m-rows td:nth-child(2) { grid-column: 1 / -1; }
+      #m-rows td[data-label]::before { content: attr(data-label); display: block; font-size: .75rem; color: #64748b; margin-bottom: .25rem; }
+      #m-rows select { width: 100%; }
+      #m-rows td:last-child { display: flex; align-items: center; gap: .75rem; min-height: 44px; }
+      #m-rows td:last-child::before { margin: 0; }
+      #m-rows input[type="checkbox"] { width: 24px; height: 24px; }
+    }
   </style>
 </head>
 <body class="min-h-screen text-slate-800 antialiased">
@@ -191,19 +233,19 @@
       </div>
     </header>
 
-    <main class="max-w-7xl mx-auto p-4 space-y-4">
+    <main class="max-w-7xl mx-auto p-4 space-y-4 safe-bottom">
       <div id="a-stats" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"></div>
 
       <!-- Penapis -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex flex-col lg:flex-row gap-3">
-        <input id="f-date" type="date" class="rounded-xl border border-slate-300 px-3 py-2" />
-        <input id="f-q" type="search" placeholder="Cari nama guru…" class="flex-1 rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-        <select id="f-session" class="rounded-xl border border-slate-300 px-3 py-2 bg-white">
+        <input id="f-date" aria-label="Tarikh kehadiran" type="date" class="rounded-xl border border-slate-300 px-3 py-2" />
+        <input id="f-q" aria-label="Cari nama guru" type="search" placeholder="Cari nama guru…" class="flex-1 rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        <select id="f-session" aria-label="Tapis sesi" class="rounded-xl border border-slate-300 px-3 py-2 bg-white">
           <option value="">Semua sesi</option>
           <option value="pagi">Sesi Pagi</option>
           <option value="petang">Sesi Petang</option>
         </select>
-        <select id="f-status" class="rounded-xl border border-slate-300 px-3 py-2 bg-white">
+        <select id="f-status" aria-label="Tapis status" class="rounded-xl border border-slate-300 px-3 py-2 bg-white">
           <option value="">Semua status</option>
           <option value="hadir">Hadir (tepat masa)</option>
           <option value="lewat">Lewat</option>
@@ -238,7 +280,7 @@
   </section>
 
   <!-- ============ DIALOG: URUS GURU ============ -->
-  <dialog id="dlg-teachers" class="w-[min(44rem,calc(100%-2rem))] rounded-2xl p-0 backdrop:bg-slate-900/50">
+  <dialog id="dlg-teachers" class="rounded-2xl p-0 backdrop:bg-slate-900/50">
     <div class="p-5 space-y-4">
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-bold">Urus Guru</h2>
@@ -246,10 +288,10 @@
       </div>
 
       <form id="m-add" class="grid sm:grid-cols-2 gap-3 bg-slate-50 rounded-xl p-4">
-        <input id="m-name" required placeholder="Nama guru" class="rounded-xl border border-slate-300 px-3 py-2" />
-        <input id="m-email" type="email" required placeholder="E-mel" autocomplete="off" class="rounded-xl border border-slate-300 px-3 py-2" />
-        <input id="m-pass" type="password" required minlength="6" placeholder="Kata laluan awal (min 6)" autocomplete="new-password" class="rounded-xl border border-slate-300 px-3 py-2" />
-        <select id="m-session" class="rounded-xl border border-slate-300 px-3 py-2 bg-white">
+        <input id="m-name" aria-label="Nama guru" required placeholder="Nama guru" class="rounded-xl border border-slate-300 px-3 py-2" />
+        <input id="m-email" aria-label="E-mel guru" type="email" required placeholder="E-mel" autocomplete="off" class="rounded-xl border border-slate-300 px-3 py-2" />
+        <input id="m-pass" aria-label="Kata laluan awal" type="password" required minlength="6" placeholder="Kata laluan awal (min 6)" autocomplete="new-password" class="rounded-xl border border-slate-300 px-3 py-2" />
+        <select id="m-session" aria-label="Sesi mengajar" class="rounded-xl border border-slate-300 px-3 py-2 bg-white">
           <option value="pagi">Sesi Pagi</option>
           <option value="petang">Sesi Petang</option>
           <option value="kedua-dua">Pagi &amp; Petang</option>
@@ -272,7 +314,7 @@
   </dialog>
 
   <!-- ============ DIALOG: TETAPAN ============ -->
-  <dialog id="dlg-settings" class="w-[min(36rem,calc(100%-2rem))] rounded-2xl p-0 backdrop:bg-slate-900/50">
+  <dialog id="dlg-settings" class="rounded-2xl p-0 backdrop:bg-slate-900/50">
     <form id="s-form" class="p-5 space-y-4">
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-bold">Tetapan</h2>
@@ -280,7 +322,7 @@
       </div>
       <label class="block text-sm font-medium">Nama sekolah
         <input id="s-name" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" /></label>
-      <div class="grid grid-cols-3 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <label class="block text-sm font-medium">Radius rumah (m)
           <input id="s-radius" type="number" min="30" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" /></label>
         <label class="block text-sm font-medium">Dibuka (min awal)
@@ -288,11 +330,11 @@
         <label class="block text-sm font-medium">Toleransi lewat (min)
           <input id="s-grace" type="number" min="0" max="60" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" /></label>
       </div>
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div><p class="text-sm font-medium mb-1">Sesi Pagi (mula / tamat)</p>
-          <div class="flex gap-2"><input id="s-pagi-start" type="time" required class="w-full rounded-xl border border-slate-300 px-2 py-2" /><input id="s-pagi-end" type="time" required class="w-full rounded-xl border border-slate-300 px-2 py-2" /></div></div>
+          <div class="grid grid-cols-2 gap-2"><input id="s-pagi-start" aria-label="Mula sesi pagi" type="time" required class="w-full rounded-xl border border-slate-300 px-2 py-2" /><input id="s-pagi-end" aria-label="Tamat sesi pagi" type="time" required class="w-full rounded-xl border border-slate-300 px-2 py-2" /></div></div>
         <div><p class="text-sm font-medium mb-1">Sesi Petang (mula / tamat)</p>
-          <div class="flex gap-2"><input id="s-petang-start" type="time" required class="w-full rounded-xl border border-slate-300 px-2 py-2" /><input id="s-petang-end" type="time" required class="w-full rounded-xl border border-slate-300 px-2 py-2" /></div></div>
+          <div class="grid grid-cols-2 gap-2"><input id="s-petang-start" aria-label="Mula sesi petang" type="time" required class="w-full rounded-xl border border-slate-300 px-2 py-2" /><input id="s-petang-end" aria-label="Tamat sesi petang" type="time" required class="w-full rounded-xl border border-slate-300 px-2 py-2" /></div></div>
       </div>
       <label class="flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-200 p-3 cursor-pointer">
         <input id="s-weekend" type="checkbox" class="mt-1 h-4 w-4 accent-amber-600" />
